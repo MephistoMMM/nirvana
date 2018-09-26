@@ -77,6 +77,11 @@ func (t *templateData) SharpBoilerplate() string {
 	return "# " + strings.Replace(t.Boilerplate, "\n", "\n# ", -1)
 }
 
+// SlashBoilerplate returns boilerplate in slash style.
+func (t *templateData) SlashBoilerplate() string {
+	return "// " + strings.Replace(t.Boilerplate, "\n", "\n// ", -1)
+}
+
 type initOptions struct {
 	Boilerplate  string
 	Version      string
@@ -85,6 +90,7 @@ type initOptions struct {
 	ImageSuffix  string
 	BuildImage   string
 	RuntimeImage string
+	GoMod        bool
 }
 
 func (o *initOptions) Install(flags *pflag.FlagSet) {
@@ -95,6 +101,7 @@ func (o *initOptions) Install(flags *pflag.FlagSet) {
 	flags.StringVar(&o.ImageSuffix, "image-suffix", "", "Docker image suffix")
 	flags.StringVar(&o.BuildImage, "build-image", "golang:latest", "Golang image for building the project")
 	flags.StringVar(&o.RuntimeImage, "runtime-image", "debian:jessie", "Docker base image for running the project")
+	flags.BoolVar(&o.GoMod, "mod", false, "Using golang modules instead of 'dep' (experimental)")
 
 }
 
@@ -214,6 +221,7 @@ func (o *initOptions) directories(project string) []string {
 }
 
 func (o *initOptions) templates(proj string) map[string]string {
+	pkgConfPath, templateGopkg := o.exTemplateGopkg()
 	return map[string]string{
 		fmt.Sprintf("cmd/%s/main.go", proj):      o.templateMain(),
 		fmt.Sprintf("build/%s/Dockerfile", proj): o.templateDockerfile(),
@@ -226,10 +234,22 @@ func (o *initOptions) templates(proj string) map[string]string {
 		"pkg/apis/api.go":                        o.templateAPI(),
 		"pkg/message/message.go":                 o.templateMessage(),
 		"pkg/version/version.go":                 o.templateVersion(),
-		"Gopkg.toml":                             o.templateGopkg(),
+		string(pkgConfPath):                      templateGopkg(),
 		"Makefile":                               o.templateMakefile(),
 		project.DefaultProjectFileName:           o.templateProject(),
 		"README.md":                              o.templateReadme(),
+	}
+}
+
+func (o *initOptions) exTemplateGopkg() (string, func() string) {
+	if o.GoMod {
+		return "go.mod", func() string {
+			return o.templateGomod()
+		}
+	}
+
+	return "Gopkg.toml", func() string {
+		return o.templateGopkg()
 	}
 }
 
@@ -638,6 +658,33 @@ required = ["github.com/caicloud/nirvana/utils/api"]
 `
 }
 
+func (o *initOptions) templateGomod() string {
+	return `
+{{- if .Boilerplate -}}
+{{ .SlashBoilerplate }}
+//
+{{ end -}}
+// go.mod example
+//
+// Refer to https://github.com/golang/go/wiki/Modules#gomod
+// for detailed go.mod and go mod command documentation.
+//
+// module github.com/my/module/v3
+//
+// require (
+//     github.com/some/dependency v1.2.3
+//     github.com/another/dependency v0.1.0
+//     github.com/additional/dependency/v4 v4.0.0
+// )
+
+module {{ .ProjectName }}
+
+require (
+	github.com/caicloud/nirvana master
+)
+`
+}
+
 func (o *initOptions) templateMakefile() string {
 	return `
 {{- if .Boilerplate -}}
@@ -712,6 +759,7 @@ build:
 container:
 	@for target in $(TARGETS); do                                                      \
 	  for registry in $(REGISTRIES); do                                                \
+	    $(shell [ -f go.mod ] && go mod vendor)                                        \
 	    image=$(IMAGE_PREFIX)$${target}$(IMAGE_SUFFIX);                                \
 	    docker build -t $${registry}$${image}:$(VERSION)                               \
 	      --build-arg ROOT=$(ROOT) --build-arg TARGET=$${target}                       \
