@@ -252,7 +252,7 @@ func (o *initOptions) exTemplateGopkg() (string, func() string) {
 			return o.templateGopkg()
 		}
 	default:
-		fmt.Errorf("Unrecognizable value of pkgmgr : \"%s\", switch to \"dep\"", o.Pkgmgr)
+		log.Warningf("Unrecognizable value of pkgmgr : \"%s\", switch to \"dep\"", o.Pkgmgr)
 		return "Gopkg.toml", func() string {
 			return o.templateGopkg()
 		}
