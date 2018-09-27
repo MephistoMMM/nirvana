@@ -762,10 +762,12 @@ build:
 	    $(CMD_DIR)/$${target};                                                         \
 	done
 
-container:
+mod-reset-vendor:
+	@$(shell [ -f go.mod ] && go mod vendor)
+
+container: mod-reset-vendor
 	@for target in $(TARGETS); do                                                      \
 	  for registry in $(REGISTRIES); do                                                \
-	    $(shell [ -f go.mod ] && go mod vendor)                                        \
 	    image=$(IMAGE_PREFIX)$${target}$(IMAGE_SUFFIX);                                \
 	    docker build -t $${registry}$${image}:$(VERSION)                               \
 	      --build-arg ROOT=$(ROOT) --build-arg TARGET=$${target}                       \
