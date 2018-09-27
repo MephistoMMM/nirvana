@@ -90,7 +90,7 @@ type initOptions struct {
 	ImageSuffix  string
 	BuildImage   string
 	RuntimeImage string
-	GoMod        bool
+	Pkgmgr       string
 }
 
 func (o *initOptions) Install(flags *pflag.FlagSet) {
@@ -101,7 +101,7 @@ func (o *initOptions) Install(flags *pflag.FlagSet) {
 	flags.StringVar(&o.ImageSuffix, "image-suffix", "", "Docker image suffix")
 	flags.StringVar(&o.BuildImage, "build-image", "golang:latest", "Golang image for building the project")
 	flags.StringVar(&o.RuntimeImage, "runtime-image", "debian:jessie", "Docker base image for running the project")
-	flags.BoolVar(&o.GoMod, "mod", false, "Using golang modules instead of 'dep' (experimental)")
+	flags.StringVar(&o.Pkgmgr, "pkgmgr", "dep", "Package manager of project, dep or mod")
 
 }
 
@@ -242,14 +242,20 @@ func (o *initOptions) templates(proj string) map[string]string {
 }
 
 func (o *initOptions) exTemplateGopkg() (string, func() string) {
-	if o.GoMod {
+	switch o.Pkgmgr {
+	case "mod":
 		return "go.mod", func() string {
 			return o.templateGomod()
 		}
-	}
-
-	return "Gopkg.toml", func() string {
-		return o.templateGopkg()
+	case "dep":
+		return "Gopkg.toml", func() string {
+			return o.templateGopkg()
+		}
+	default:
+		fmt.Errorf("Unrecognizable value of pkgmgr : \"%s\", switch to \"dep\"", o.Pkgmgr)
+		return "Gopkg.toml", func() string {
+			return o.templateGopkg()
+		}
 	}
 }
 
